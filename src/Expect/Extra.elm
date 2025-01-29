@@ -19,6 +19,9 @@ import List.Extra
 
 
 {-| A version of `Expect.equal` for multiline strings.
+
+Note: the similarity check is only used to improve the diff. `expectEqualMultiline` checks if the strings are identical or not, and will only pass if they are
+
 -}
 expectEqualMultiline : { similarIf : SimilarIf, context : Int } -> String -> String -> Expect.Expectation
 expectEqualMultiline config exp actual =
