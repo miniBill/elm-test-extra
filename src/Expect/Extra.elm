@@ -20,7 +20,9 @@ import List.Extra
 
 {-| A version of `Expect.equal` for multiline strings.
 
-Note: the similarity check is only used to improve the diff. `expectEqualMultiline` checks if the strings are identical or not, and will only pass if they are
+`context` is the number of lines of context to show in the message.
+
+Note: the similarity check is only used to improve the diff. `expectEqualMultiline` checks if the strings are identical or not, and will only pass if they are.
 
 -}
 expectEqualMultiline : { similarIf : SimilarIf, context : Int } -> String -> String -> Expect.Expectation
@@ -33,8 +35,13 @@ expectEqualMultiline config exp actual =
             header : String
             header =
                 Ansi.Color.fontColor Ansi.Color.blue "Diff from expected to actual:\n"
+
+            diffString : String
+            diffString =
+                diffMultiline config.similarIf exp actual
+                    |> diffToString { context = config.context }
         in
-        Expect.fail (header ++ diffMultiline config exp actual)
+        Expect.fail (header ++ diffString)
 
 
 {-| Only consider two lines similar if they are the same.
@@ -114,31 +121,43 @@ type SimilarIf
     = SimilarIf (( String, List Char ) -> ( String, List Char ) -> Maybe (List (Diff.Change Never Char)))
 
 
-type alias NonEmptyList a =
-    ( a, List a )
-
-
 {-| Calculate the diff between two multiline strings.
 -}
-diffMultiline : { similarIf : SimilarIf, context : Int } -> String -> String -> String
-diffMultiline config from to =
-    let
-        (SimilarIf areSimilar) =
-            config.similarIf
+diffMultiline : SimilarIf -> String -> String -> List (Diff.Change (List (Diff.Change Never Char)) String)
+diffMultiline areSimilar from to =
+    diffMultilineInternal areSimilar from to
+        |> List.map
+            (\change ->
+                case change of
+                    Diff.Added ( a, _ ) ->
+                        Diff.Added a
 
-        groups :
-            List
-                (NonEmptyList
-                    (Diff.Change
-                        (List (Diff.Change Never Char))
-                        ( String, List Char )
-                    )
-                )
+                    Diff.Removed ( r, _ ) ->
+                        Diff.Removed r
+
+                    Diff.NoChange ( n, _ ) ->
+                        Diff.NoChange n
+
+                    Diff.Similar ( b, _ ) ( a, _ ) d ->
+                        Diff.Similar b a d
+            )
+
+
+diffMultilineInternal : SimilarIf -> String -> String -> List (Diff.Change (List (Diff.Change Never Char)) ( String, List Char ))
+diffMultilineInternal (SimilarIf areSimilar) from to =
+    Diff.diffWith areSimilar
+        (prepare from)
+        (prepare to)
+
+
+{-| `context` is the number of lines of context to show in the diff.
+-}
+diffToString : { context : Int } -> List (Diff.Change (List (Diff.Change Never Char)) String) -> String
+diffToString { context } diff =
+    let
+        groups : List ( Diff.Change (List (Diff.Change Never Char)) String, List (Diff.Change (List (Diff.Change Never Char)) String) )
         groups =
-            Diff.diffWith areSimilar
-                (prepare from)
-                (prepare to)
-                |> gatherGroups
+            gatherGroups diff
 
         groupCount : Int
         groupCount =
@@ -150,19 +169,19 @@ diffMultiline config from to =
                 case head of
                     Diff.NoChange _ ->
                         if i == 0 then
-                            List.reverse (List.take config.context (List.reverse tail))
+                            List.reverse (List.take context (List.reverse tail))
 
                         else if i == groupCount - 1 then
                             head
-                                :: List.take (config.context - 1) tail
+                                :: List.take (context - 1) tail
 
-                        else if List.length tail > 2 * config.context then
+                        else if List.length tail > 2 * context then
                             head
-                                :: List.take (config.context - 1) tail
-                                ++ Diff.NoChange ( "", [] )
-                                :: Diff.NoChange ( "---", [] )
-                                :: Diff.NoChange ( "", [] )
-                                :: List.reverse (List.take config.context (List.reverse tail))
+                                :: List.take (context - 1) tail
+                                ++ Diff.NoChange ""
+                                :: Diff.NoChange "---"
+                                :: Diff.NoChange ""
+                                :: List.reverse (List.take context (List.reverse tail))
 
                         else
                             head :: tail
@@ -190,19 +209,19 @@ prepare from =
         |> List.map (\line -> ( line, squish line ))
 
 
-changeToString : Diff.Change (List (Diff.Change Never Char)) ( String, a ) -> String
+changeToString : Diff.Change (List (Diff.Change Never Char)) String -> String
 changeToString change =
     case change of
-        Diff.NoChange ( before, _ ) ->
+        Diff.NoChange before ->
             " " ++ before
 
         Diff.Similar _ _ diff ->
             lineChangeToString diff
 
-        Diff.Added ( line, _ ) ->
+        Diff.Added line ->
             Ansi.Color.fontColor Ansi.Color.green ("+" ++ line)
 
-        Diff.Removed ( line, _ ) ->
+        Diff.Removed line ->
             Ansi.Color.fontColor Ansi.Color.red ("-" ++ line)
 
 
