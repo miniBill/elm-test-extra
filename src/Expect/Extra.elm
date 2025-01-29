@@ -1,13 +1,13 @@
 module Expect.Extra exposing
     ( expectEqualMultiline
-    , similarIfSame, similarIfSameIgnoringSpaces, similarIfSmallDiff, SimilarIf
+    , similarIfSame, similarIfSameTrimming, similarIfSameIgnoringSpaces, similarIfSmallDiff, similarIf, SimilarIf
     , diffMultiline
     )
 
 {-|
 
 @docs expectEqualMultiline
-@docs similarIfSame, similarIfSameIgnoringSpaces, similarIfSmallDiff, SimilarIf
+@docs similarIfSame, similarIfSameTrimming, similarIfSameIgnoringSpaces, similarIfSmallDiff, similarIf, SimilarIf
 @docs diffMultiline
 
 -}
@@ -41,7 +41,21 @@ similarIfSame =
     SimilarIf (\_ _ -> Nothing)
 
 
-{-| Consider two lines similar if they are the same ignoring spaces.
+{-| Consider two lines similar if they are the same ignoring leading/trailing whitespace.
+-}
+similarIfSameTrimming : SimilarIf
+similarIfSameTrimming =
+    SimilarIf
+        (\( l, _ ) ( r, _ ) ->
+            if String.trim l == String.trim r then
+                Just (Diff.diff (String.toList l) (String.toList r))
+
+            else
+                Nothing
+        )
+
+
+{-| Consider two lines similar if they are the same ignoring all spaces, both leading/trailing and within the line.
 -}
 similarIfSameIgnoringSpaces : SimilarIf
 similarIfSameIgnoringSpaces =
@@ -74,6 +88,20 @@ similarIfSmallDiff =
         )
 
 
+{-| Custom similarity check.
+-}
+similarIf : (String -> String -> Bool) -> SimilarIf
+similarIf f =
+    SimilarIf
+        (\( l, _ ) ( r, _ ) ->
+            if f l r then
+                Just (Diff.diff (String.toList l) (String.toList r))
+
+            else
+                Nothing
+        )
+
+
 {-| Represents a check for similarity.
 -}
 type SimilarIf
@@ -87,10 +115,10 @@ type alias NonEmptyList a =
 {-| Calculate the difference between two multiline strings.
 -}
 diffMultiline : { similarIf : SimilarIf, context : Int } -> String -> String -> String
-diffMultiline { similarIf, context } from to =
+diffMultiline config from to =
     let
         (SimilarIf areSimilar) =
-            similarIf
+            config.similarIf
 
         groups :
             List
@@ -116,19 +144,19 @@ diffMultiline { similarIf, context } from to =
                 case head of
                     Diff.NoChange _ ->
                         if i == 0 then
-                            List.reverse (List.take context (List.reverse tail))
+                            List.reverse (List.take config.context (List.reverse tail))
 
                         else if i == groupCount - 1 then
                             head
-                                :: List.take (context - 1) tail
+                                :: List.take (config.context - 1) tail
 
-                        else if List.length tail > 2 * context then
+                        else if List.length tail > 2 * config.context then
                             head
-                                :: List.take (context - 1) tail
+                                :: List.take (config.context - 1) tail
                                 ++ Diff.NoChange ( "", [] )
                                 :: Diff.NoChange ( "---", [] )
                                 :: Diff.NoChange ( "", [] )
-                                :: List.reverse (List.take context (List.reverse tail))
+                                :: List.reverse (List.take config.context (List.reverse tail))
 
                         else
                             head :: tail
