@@ -1,14 +1,22 @@
 module Expect.Extra exposing
     ( expectEqualMultiline
     , similarIfSmallDiff, similarIfSame, similarIfSameTrimming, similarIfSameIgnoringSpaces, similarIf, SimilarIf
-    , diff, diffToString
+    , diff, diffToString, LineDiff
     )
 
 {-|
 
 @docs expectEqualMultiline
+
+
+# Options
+
 @docs similarIfSmallDiff, similarIfSame, similarIfSameTrimming, similarIfSameIgnoringSpaces, similarIf, SimilarIf
-@docs diff, diffToString
+
+
+# Lower level API
+
+@docs diff, diffToString, LineDiff
 
 -}
 
@@ -118,12 +126,18 @@ similarIf f =
 {-| Represents a check for similarity.
 -}
 type SimilarIf
-    = SimilarIf (( String, List Char ) -> ( String, List Char ) -> Maybe (List (Diff.Change Never Char)))
+    = SimilarIf (( String, List Char ) -> ( String, List Char ) -> Maybe (List LineDiff))
+
+
+{-| The difference between two single lines.
+-}
+type alias LineDiff =
+    Diff.Change Never Char
 
 
 {-| Calculate the diff between two multiline strings.
 -}
-diff : SimilarIf -> String -> String -> List (Diff.Change (List (Diff.Change Never Char)) String)
+diff : SimilarIf -> String -> String -> List (Diff.Change (List LineDiff) String)
 diff areSimilar from to =
     diffInternal areSimilar from to
         |> List.map
@@ -143,7 +157,7 @@ diff areSimilar from to =
             )
 
 
-diffInternal : SimilarIf -> String -> String -> List (Diff.Change (List (Diff.Change Never Char)) ( String, List Char ))
+diffInternal : SimilarIf -> String -> String -> List (Diff.Change (List LineDiff) ( String, List Char ))
 diffInternal (SimilarIf areSimilar) from to =
     Diff.diffWith areSimilar
         (prepare from)
@@ -155,10 +169,10 @@ diffInternal (SimilarIf areSimilar) from to =
 `context` is the number of lines of context to show in the diff.
 
 -}
-diffToString : { context : Int } -> List (Diff.Change (List (Diff.Change Never Char)) String) -> String
+diffToString : { context : Int } -> List (Diff.Change (List LineDiff) String) -> String
 diffToString { context } diffLines =
     let
-        groups : List ( Diff.Change (List (Diff.Change Never Char)) String, List (Diff.Change (List (Diff.Change Never Char)) String) )
+        groups : List ( Diff.Change (List LineDiff) String, List (Diff.Change (List LineDiff) String) )
         groups =
             gatherGroups diffLines
 
@@ -212,7 +226,7 @@ prepare from =
         |> List.map (\line -> ( line, squish line ))
 
 
-changeToString : Diff.Change (List (Diff.Change Never Char)) String -> String
+changeToString : Diff.Change (List LineDiff) String -> String
 changeToString change =
     case change of
         Diff.NoChange before ->
@@ -228,7 +242,7 @@ changeToString change =
             Ansi.Color.fontColor Ansi.Color.red ("-" ++ line)
 
 
-lineChangeToString : List (Diff.Change Never Char) -> String
+lineChangeToString : List LineDiff -> String
 lineChangeToString diffLines =
     let
         ( befores, afters ) =
