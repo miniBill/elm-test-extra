@@ -118,7 +118,7 @@ type alias NonEmptyList a =
     ( a, List a )
 
 
-{-| Calculate the difference between two multiline strings.
+{-| Calculate the diff between two multiline strings.
 -}
 diffMultiline : { similarIf : SimilarIf, context : Int } -> String -> String -> String
 diffMultiline config from to =
