@@ -1,13 +1,13 @@
 module Expect.Extra exposing
     ( expectEqualMultiline
-    , similarIfSame, similarIfSameTrimming, similarIfSameIgnoringSpaces, similarIfSmallDiff, similarIf, SimilarIf
+    , similarIfSmallDiff, similarIfSame, similarIfSameTrimming, similarIfSameIgnoringSpaces, similarIf, SimilarIf
     , diffMultiline
     )
 
 {-|
 
 @docs expectEqualMultiline
-@docs similarIfSame, similarIfSameTrimming, similarIfSameIgnoringSpaces, similarIfSmallDiff, similarIf, SimilarIf
+@docs similarIfSmallDiff, similarIfSame, similarIfSameTrimming, similarIfSameIgnoringSpaces, similarIf, SimilarIf
 @docs diffMultiline
 
 -}
@@ -70,6 +70,9 @@ similarIfSameIgnoringSpaces =
 
 
 {-| Consider two lines similar if their diff is less than 1/4 of the total length.
+
+This is more expensive to compute than the other conditions, but will produce the best diffs.
+
 -}
 similarIfSmallDiff : SimilarIf
 similarIfSmallDiff =
