@@ -1,14 +1,14 @@
 module Expect.Extra exposing
     ( expectEqualMultiline
     , similarIfSmallDiff, similarIfSame, similarIfSameTrimming, similarIfSameIgnoringSpaces, similarIf, SimilarIf
-    , diffMultiline
+    , diff, diffToString
     )
 
 {-|
 
 @docs expectEqualMultiline
 @docs similarIfSmallDiff, similarIfSame, similarIfSameTrimming, similarIfSameIgnoringSpaces, similarIf, SimilarIf
-@docs diffMultiline
+@docs diff, diffToString
 
 -}
 
@@ -38,7 +38,7 @@ expectEqualMultiline config exp actual =
 
             diffString : String
             diffString =
-                diffMultiline config.similarIf exp actual
+                diff config.similarIf exp actual
                     |> diffToString { context = config.context }
         in
         Expect.fail (header ++ diffString)
@@ -123,9 +123,9 @@ type SimilarIf
 
 {-| Calculate the diff between two multiline strings.
 -}
-diffMultiline : SimilarIf -> String -> String -> List (Diff.Change (List (Diff.Change Never Char)) String)
-diffMultiline areSimilar from to =
-    diffMultilineInternal areSimilar from to
+diff : SimilarIf -> String -> String -> List (Diff.Change (List (Diff.Change Never Char)) String)
+diff areSimilar from to =
+    diffInternal areSimilar from to
         |> List.map
             (\change ->
                 case change of
@@ -143,21 +143,24 @@ diffMultiline areSimilar from to =
             )
 
 
-diffMultilineInternal : SimilarIf -> String -> String -> List (Diff.Change (List (Diff.Change Never Char)) ( String, List Char ))
-diffMultilineInternal (SimilarIf areSimilar) from to =
+diffInternal : SimilarIf -> String -> String -> List (Diff.Change (List (Diff.Change Never Char)) ( String, List Char ))
+diffInternal (SimilarIf areSimilar) from to =
     Diff.diffWith areSimilar
         (prepare from)
         (prepare to)
 
 
-{-| `context` is the number of lines of context to show in the diff.
+{-| Converts a diff between strings into a pretty-printed, colored, formatted diff.
+
+`context` is the number of lines of context to show in the diff.
+
 -}
 diffToString : { context : Int } -> List (Diff.Change (List (Diff.Change Never Char)) String) -> String
-diffToString { context } diff =
+diffToString { context } diffLines =
     let
         groups : List ( Diff.Change (List (Diff.Change Never Char)) String, List (Diff.Change (List (Diff.Change Never Char)) String) )
         groups =
-            gatherGroups diff
+            gatherGroups diffLines
 
         groupCount : Int
         groupCount =
@@ -215,8 +218,8 @@ changeToString change =
         Diff.NoChange before ->
             " " ++ before
 
-        Diff.Similar _ _ diff ->
-            lineChangeToString diff
+        Diff.Similar _ _ d ->
+            lineChangeToString d
 
         Diff.Added line ->
             Ansi.Color.fontColor Ansi.Color.green ("+" ++ line)
@@ -226,10 +229,10 @@ changeToString change =
 
 
 lineChangeToString : List (Diff.Change Never Char) -> String
-lineChangeToString diff =
+lineChangeToString diffLines =
     let
         ( befores, afters ) =
-            diff
+            diffLines
                 |> List.foldr
                     (\change ( beforeAcc, afterAcc ) ->
                         case change of
